@@ -61,11 +61,26 @@ const executeAPI = async (url, params) => {
   }
   await pool.execute('INSERT INTO `config` (`key`, `value`) VALUES (?, ?) ON DUPLICATE KEY UPDATE `value` = VALUES(`value`)', [ 'rate_usd_jpy', rateUsdJpy.toString() ])
   console.log('Set rate_usd_jpy to ' + rateUsdJpy)
-  const array = await pool.execute('SELECT * FROM `packages`')
-  for (const pkg of array[0]) {
+  const array = await pool.execute('SELECT * FROM `packages`')[0]
+  for (const pkg of array) {
     const usd = roundUsd(pkg.yen / rateUsdJpy)
     console.log(`Setting price of ${pkg.id} to ${usd}`)
-    // TODO: implement
+    const res = await executeAPI(`https://plugin.tebex.io/package/${pkg.id}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Tebex-Secret': process.env.TEBEX_SECRET,
+      },
+      body: JSON.stringify({
+        price: usd,
+      }),
+    })
+    if (res.status !== 204) {
+      console.error(`Failed to update package ${pkg.id}`)
+      console.error(await res.text())
+      throw new Error()
+    }
   }
+  console.log(`Updated ${array.length} packages`)
   process.exit(0)
 })()
