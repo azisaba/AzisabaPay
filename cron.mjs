@@ -17,6 +17,19 @@ const pool = mysql.createPool({
 
 const roundUsd = (usd) => Math.floor(usd * 100) / 100
 
+const sleep = (millis) => new Promise((resolve) => setTimeout(() => resolve(), millis))
+
+const API_EXECUTE_INTERVAL = 1500
+let lastApiExecuted = 0
+const executeAPI = async (url, params) => {
+  const sleepMillis = API_EXECUTE_INTERVAL + (lastApiExecuted - Date.now())
+  lastApiExecuted = Date.now()
+  if (sleepMillis > 0) {
+    await sleep(sleepMillis)
+  }
+  return await fetch(url, params)
+}
+
 !(async () => {
   await pool.execute(`
     CREATE TABLE IF NOT EXISTS \`packages\` (

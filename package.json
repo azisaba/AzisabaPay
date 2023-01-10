@@ -2,6 +2,7 @@
   "dependencies": {
     "discord.js": "^14.7.1",
     "dotenv": "^16.0.3",
+    "logger.js": "acrylic-style/logger.js",
     "mysql2": "^2.3.3",
     "node-fetch": "^3.3.0"
   }

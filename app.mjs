@@ -3,6 +3,10 @@ import { Client, IntentsBitField } from 'discord.js'
 import crypto from 'crypto'
 import fetch from 'node-fetch'
 import mysql from 'mysql2/promise'
+import { LoggerFactory } from 'logger.js'
+import { inspect } from 'util'
+
+const logger = LoggerFactory.getLogger('app', null)
 
 // loads .env file contents into process.env
 dotenv.config()
@@ -33,17 +37,26 @@ const client = new Client({
     IntentsBitField.Flags.GuildMessages,
     IntentsBitField.Flags.GuildMessageReactions,
     IntentsBitField.Flags.MessageContent, // Privileged
+    IntentsBitField.Flags.GuildMembers,
   ]
 })
 
-client.on('ready', () => {
-  console.log(`Logged in as ${client.user.tag}`)
+client.on('ready', async () => {
+  logger.info(`Logged in as ${client.user.tag}`)
+  await Promise.all(client.guilds.cache.map((guild) => guild.members.fetch()))
+  logger.info('Fetched all members')
 })
 
 client.on('raw', async (p) => {
   if (p.t === 'MESSAGE_REACTION_ADD' && p.d.channel_id === process.env.CHANNEL_ID &&
       p.d.user_id === process.env.USER_ID && p.d.emoji.name === '✅') {
     const user = await client.users.fetch(process.env.USER_ID)
+    const config = (await pool.execute('SELECT * FROM `config`'))[0]
+    // parse rate_usd_jpy
+    const rateUsdJpy = parseFloat(config.find((e) => e.key === 'rate_usd_jpy').value)
+    if (!rateUsdJpy || !isFinite(rateUsdJpy) || isNaN(rateUsdJpy)) {
+      return user.send(`\`rate_usd_jpy\`が未定義か、無効な値です。(\`${rateUsdJpy}\`)`)
+    }
     const channel = await client.channels.fetch(p.d.channel_id)
     const message = await channel.messages.fetch(p.d.message_id)
     const props = {}
@@ -52,28 +65,33 @@ client.on('raw', async (p) => {
       if (arr.length < 2) continue
       props[arr[0].trim()] = arr[1].trim()
     }
+    // check message contents
     if (!props['MCID'] || !props['DiscordID'] || !props['金額']) {
       return // missing one or more properties
     }
+    // fetch minecraft uuid
     const minecraftAccount = await fetch('https://api.mojang.com/users/profiles/minecraft/' + props['MCID']).then((res) => res.json())
     if (!minecraftAccount.id) {
       // player doesn't exist?
       return user.send(`MCID \`${props['MCID']}\`が見つかりません`)
     }
-    const targetUser = await client.users.fetch(props['DiscordID']).catch((e) => {
-      user.send(`Discordユーザー\`${props['DiscordID']}\`が見つかりません\n\`\`\`\n${e.stack || e}\n\`\`\``)
-      return null
-    })
-    if (!targetUser) return
+    // find user by id
+    let targetUser = await client.users.fetch(props['DiscordID']).catch(() => null)
+    if (!targetUser) {
+      // find user by tag
+      targetUser = client.users.cache.find((user) => user.tag === props['DiscordID'])
+    }
+    // parse and check price
     const yen = parseInt(props['金額'])
     if (!isFinite(yen) || isNaN(yen)) {
       return user.send(`金額 \`${props['金額']}\`は無効な値です`)
     }
+    // generate code
     const code = generateCode(15)
-    const rateUsdJpy = 120 // TODO
+    // convert jpy to usd and check the value
     const usd = roundUsd(yen / rateUsdJpy)
     if (!isFinite(usd) || isNaN(usd)) {
-      console.error(`${usd} USD is invalid (yen: ${yen}, rate: ${rateUsdJpy})`)
+      logger.error(`${usd} USD is invalid (yen: ${yen}, rate: ${rateUsdJpy})`)
       return user.send(`金額(USD) \`${usd}\`は無効な値です`)
     }
     const body = {
@@ -90,6 +108,7 @@ client.on('raw', async (p) => {
       redeem_unlimited: false,
       expire_never: true,
     }
+    // create coupon
     const response = await fetch('https://plugin.tebex.io/coupons', {
       method: 'POST',
       headers: {
@@ -100,15 +119,17 @@ client.on('raw', async (p) => {
     }).then((res) => res.json())
     const couponId = response?.data?.id
     if (!couponId) {
-      console.error(`Error returned from Tebex:`, response)
-      console.error('Request body:', body)
+      logger.error(`Error returned from Tebex: ${inspect(response)}`)
+      logger.error(`Request body: ${inspect(body)}`)
       user.send(`クーポンの作成に失敗しました\n\`\`\`\n${response.error_message}\n\`\`\``)
       return
     }
     try {
+      // insert into codes table
       await pool.execute('INSERT INTO `codes` (`id`, `code`, `yen`) VALUES (?, ?, ?)', [couponId, code, yen])
     } catch (e) {
       user.send(`データベースの操作に失敗しました\n\`\`\`\n${e.stack || e}\n\`\`\``)
+      // delete coupon if unsuccessful
       fetch('https://plugin.tebex.io/coupons/' + couponId, {
         method: 'DELETE',
         headers: {
@@ -116,17 +137,22 @@ client.on('raw', async (p) => {
         },
       }).then((res) => {
         if (res.status < 200 || res.status >= 300) {
-          console.error(`Failed to delete coupon id ${couponId} (code: ${code}, amount: ${yen})`)
+          logger.error(`Failed to delete coupon id ${couponId} (code: ${code}, amount: ${yen})`)
         }
       }).catch((e) => {
-        console.error(`Failed to delete coupon id ${couponId} (code: ${code}, amount: ${yen})`)
-        console.error(e.stack || e)
+        logger.error(`Failed to delete coupon id ${couponId} (code: ${code}, amount: ${yen})`)
+        logger.error(e.stack || e)
       })
       return
     }
-    console.log(`New code generated: MU: ${props['MCID']}, MUU: ${minecraftAccount.id}, DU: ${props['DiscordID']}, C: ${code}, I: ${couponId}, AJ: ${yen}, AU: ${usd}`)
-    user.send(`Amazonギフト券の処理が完了し、クーポンを発行しました\nMCID: \`${props['MCID']}\`\nUUID: \`${minecraftAccount.id}\`\nコード: \`${code}\`\n金額: ${yen}円 (${usd} USD)`)
-    targetUser.send(`Amazonギフト券の処理が完了しました。\nMCID: \`${props['MCID']}\`\nUUID: \`${minecraftAccount.id}\`\nクーポンコード(<https://store.azisaba.net>で使用できます): \`${code}\`\n金額: ${yen}円 (${usd} USD)`)
+    // send notification
+    logger.info(`New code generated: MU: ${props['MCID']}, MUU: ${minecraftAccount.id}, DU: ${props['DiscordID']}, C: ${code}, I: ${couponId}, AJ: ${yen}, AU: ${usd}`)
+    const warning = []
+    if (!targetUser) {
+      warning.push(`Discordユーザー\`${props['DiscordID']}\`が見つかりません`)
+    }
+    user.send(`Amazonギフト券の処理が完了し、クーポンを発行しました\nMCID: \`${props['MCID']}\`\nUUID: \`${minecraftAccount.id}\`\nコード: \`${code}\`\n金額: ${yen}円 (${usd} USD)\n警告: ${warning.join(', ')}`)
+    targetUser?.send(`Amazonギフト券の処理が完了しました。\nMCID: \`${props['MCID']}\`\nUUID: \`${minecraftAccount.id}\`\nクーポンコード(<https://store.azisaba.net>で使用できます): \`${code}\`\n金額: ${yen}円 (${usd} USD)`)
   }
 })
 
