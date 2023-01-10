@@ -151,8 +151,10 @@ client.on('raw', async (p) => {
     if (!targetUser) {
       warning.push(`Discordユーザー\`${props['DiscordID']}\`が見つかりません`)
     }
+    await targetUser?.send(`Amazonギフト券の処理が完了しました。\nMCID: \`${props['MCID']}\`\nUUID: \`${minecraftAccount.id}\`\nクーポンコード(<https://store.azisaba.net>で使用できます): \`${code}\`\n金額: ${yen}円 (${usd} USD)`)?.catch((e) => {
+      warning.push(`DMの送信に失敗しました: ${e}`)
+    })
     user.send(`Amazonギフト券の処理が完了し、クーポンを発行しました\nMCID: \`${props['MCID']}\`\nUUID: \`${minecraftAccount.id}\`\nコード: \`${code}\`\n金額: ${yen}円 (${usd} USD)\n警告: ${warning.join(', ')}`)
-    targetUser?.send(`Amazonギフト券の処理が完了しました。\nMCID: \`${props['MCID']}\`\nUUID: \`${minecraftAccount.id}\`\nクーポンコード(<https://store.azisaba.net>で使用できます): \`${code}\`\n金額: ${yen}円 (${usd} USD)`)
   }
 })
 
