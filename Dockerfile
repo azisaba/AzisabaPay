@@ -15,5 +15,6 @@ COPY --from=Builder /app/node_modules/ ./node_modules/
 COPY app.mjs ./
 COPY import.mjs ./
 COPY cron.mjs ./
+COPY util.mjs ./
 
 CMD [ "node", "app.mjs" ]
