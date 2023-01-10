@@ -5,6 +5,11 @@ import mysql from 'mysql2/promise'
 // loads .env file contents into process.env
 dotenv.config()
 
+if (!process.env.FORCE) {
+  console.log('You sure? (Use FORCE environment variable)')
+  process.exit(1)
+}
+
 const pool = mysql.createPool({
   host: process.env.DB_HOST,
   user: process.env.DB_USER,
