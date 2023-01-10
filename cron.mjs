@@ -86,7 +86,6 @@ const executeAPI = async (url, params) => {
         throw new Error(`Invalid value: ${usd}`)
       }
       console.log(`Setting price of ${pkg.id} to ${usd}`)
-      /*
       const res = await executeAPI(`https://plugin.tebex.io/package/${pkg.id}`, {
         method: 'PUT',
         headers: {
@@ -102,7 +101,6 @@ const executeAPI = async (url, params) => {
         console.error(await res.text())
         throw new Error()
       }
-      */
     }
     console.log(`Updated ${array[0].length} packages`)
     const coupons = await pool.query('SELECT * FROM `codes`')
