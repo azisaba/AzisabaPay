@@ -6,16 +6,6 @@ import { sendWebhook } from './util.mjs'
 // loads .env file contents into process.env
 dotenv.config()
 
-const pool = mysql.createPool({
-  host: process.env.DB_HOST,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME,
-  waitForConnections: true,
-  connectionLimit: 10,
-  queueLimit: 0,
-})
-
 const roundUsd = (usd) => Math.floor(usd * 100) / 100
 
 const sleep = (millis) => new Promise((resolve) => setTimeout(() => resolve(), millis))
@@ -33,6 +23,16 @@ const executeAPI = async (url, params) => {
 
 !(async () => {
   try {
+    const pool = mysql.createPool({
+      host: process.env.DB_HOST,
+      user: process.env.DB_USER,
+      password: process.env.DB_PASSWORD,
+      database: process.env.DB_NAME,
+      waitForConnections: true,
+      connectionLimit: 10,
+      queueLimit: 0,
+    })
+
     await pool.execute(`
     CREATE TABLE IF NOT EXISTS \`codes\` (
       \`id\` BIGINT NOT NULL,
@@ -96,9 +96,11 @@ const executeAPI = async (url, params) => {
           price: usd,
         }),
       })
-      if (res.status !== 204) {
+      if (res.status < 200 && res.status > 299) {
+        const rawResponse = await res.text()
+        await sendWebhook(`Failed to update package ${pkg.id} (status: ${res.status})\n\`\`\`\n${response}\n\`\`\``)
         console.error(`Failed to update package ${pkg.id}`)
-        console.error(await res.text())
+        console.error(rawResponse)
         throw new Error()
       }
     }
