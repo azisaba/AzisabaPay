@@ -5,6 +5,7 @@ import fetch from 'node-fetch'
 import mysql from 'mysql2/promise'
 import { LoggerFactory } from 'logger.js'
 import { inspect } from 'util'
+import { roundUsd } from './util.mjs'
 
 const logger = LoggerFactory.getLogger('app', null)
 
@@ -29,8 +30,6 @@ const generateCode = (length) => {
   }
   return s
 }
-
-const roundUsd = (usd) => Math.floor(usd * 100) / 100
 
 const client = new Client({
   intents: [

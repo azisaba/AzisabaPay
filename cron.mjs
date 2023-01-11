@@ -1,12 +1,10 @@
 import dotenv from 'dotenv'
 import fetch from 'node-fetch'
 import mysql from 'mysql2/promise'
-import { sendWebhook } from './util.mjs'
+import { sendWebhook, roundUsd } from './util.mjs'
 
 // loads .env file contents into process.env
 dotenv.config()
-
-const roundUsd = (usd) => Math.floor(usd * 100) / 100
 
 const sleep = (millis) => new Promise((resolve) => setTimeout(() => resolve(), millis))
 
