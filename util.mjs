@@ -23,4 +23,4 @@ export const sendWebhook = async (text) => {
   })
 }
 
-export const roundUsd = (usd) => Math.floor(usd * 100) / 100
+export const roundUsd = (usd) => Math.ceil(usd * 100) / 100
