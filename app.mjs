@@ -62,7 +62,7 @@ client.on('raw', async (p) => {
     for (const line of message.content.split('\n')) {
       const arr = line.split(':')
       if (arr.length < 2) continue
-      props[arr[0].trim()] = arr[1].trim().replace('`', '')
+      props[arr[0].trim()] = arr[1].trim().replace(/`/g, '')
     }
     // check message contents
     if (!props['MCID'] || !props['DiscordID'] || !props['金額']) {
