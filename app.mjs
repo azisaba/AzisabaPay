@@ -78,7 +78,7 @@ client.on('raw', async (p) => {
     let targetUser = await client.users.fetch(props['DiscordID']).catch(() => null)
     if (!targetUser) {
       // find user by tag
-      targetUser = client.users.cache.find((user) => user.tag === props['DiscordID'])
+      targetUser = client.users.cache.find((user) => user.tag === props['DiscordID'] || (user.tag === `${props['DiscordID']}#0` && user.discriminator === '0'))
     }
     // parse and check price
     const yen = parseInt(props['金額'])
