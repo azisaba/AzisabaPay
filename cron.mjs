@@ -78,7 +78,7 @@ const executeAPI = async (url, params) => {
     console.log('Set rate_usd_jpy to ' + rateUsdJpy)
     const array = await pool.query('SELECT * FROM `packages`')
     for (const pkg of array[0]) {
-      const usd = roundUsd(pkg.yen / rateUsdJpy)
+      const usd = roundUsd(pkg.yen / rateUsdJpy, true)
       if (!isFinite(usd) || isNaN(usd)) {
         await sendWebhook(`Package ${pkg.id}の変換後のUSD価格が不正な値です: ${usd} (ベースとする価格: ${pkg.yen}円, レート: ${rateUsdJpy}円)`)
         throw new Error(`Invalid value: ${usd}`)
